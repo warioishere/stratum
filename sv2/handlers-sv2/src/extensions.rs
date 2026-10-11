@@ -1,4 +1,6 @@
-use extensions_sv2::{RequestExtensions, RequestExtensionsError, RequestExtensionsSuccess};
+use extensions_sv2::{
+    RequestExtensions, RequestExtensionsError, RequestExtensionsSuccess, SetPayoutDistribution,
+};
 use framing_sv2::header::Header;
 use parsers_sv2::{parse_message_frame_with_tlvs, AnyMessage, Extensions, Tlv};
 
@@ -86,6 +88,11 @@ pub trait HandleExtensionsFromServerSync {
                     ))
                 }
             },
+            Extensions::CoinbaseTransactionPayouts(ext) => match ext {
+                parsers_sv2::CoinbaseTransactionPayouts::SetPayoutDistribution(msg) => {
+                    self.handle_set_payout_distribution(server_id, msg, tlv_fields)
+                }
+            },
         }
     }
 
@@ -100,6 +107,13 @@ pub trait HandleExtensionsFromServerSync {
         &mut self,
         server_id: Option<usize>,
         msg: RequestExtensionsError,
+        tlv_fields: Option<&[Tlv]>,
+    ) -> Result<(), Self::Error>;
+
+    fn handle_set_payout_distribution(
+        &mut self,
+        server_id: Option<usize>,
+        msg: SetPayoutDistribution,
         tlv_fields: Option<&[Tlv]>,
     ) -> Result<(), Self::Error>;
 }
@@ -199,6 +213,12 @@ pub trait HandleExtensionsFromServerAsync {
                         ))
                     }
                 },
+                Extensions::CoinbaseTransactionPayouts(ext) => match ext {
+                    parsers_sv2::CoinbaseTransactionPayouts::SetPayoutDistribution(msg) => {
+                        self.handle_set_payout_distribution(server_id, msg, tlv_fields)
+                            .await
+                    }
+                },
             }
         }
     }
@@ -214,6 +234,13 @@ pub trait HandleExtensionsFromServerAsync {
         &mut self,
         server_id: Option<usize>,
         msg: RequestExtensionsError,
+        tlv_fields: Option<&[Tlv]>,
+    ) -> Result<(), Self::Error>;
+
+    async fn handle_set_payout_distribution(
+        &mut self,
+        server_id: Option<usize>,
+        msg: SetPayoutDistribution,
         tlv_fields: Option<&[Tlv]>,
     ) -> Result<(), Self::Error>;
 }
@@ -300,6 +327,15 @@ pub trait HandleExtensionsFromClientSync {
                     Err(Self::Error::unexpected_message(
                         extensions_sv2::EXTENSION_TYPE_EXTENSIONS_NEGOTIATION,
                         extensions_sv2::MESSAGE_TYPE_REQUEST_EXTENSIONS_ERROR,
+                    ))
+                }
+            },
+            // SetPayoutDistribution is sent by server, not client
+            Extensions::CoinbaseTransactionPayouts(ext) => match ext {
+                parsers_sv2::CoinbaseTransactionPayouts::SetPayoutDistribution(_) => {
+                    Err(Self::Error::unexpected_message(
+                        extensions_sv2::EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
+                        extensions_sv2::MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
                     ))
                 }
             },
@@ -408,6 +444,15 @@ pub trait HandleExtensionsFromClientAsync {
                         Err(Self::Error::unexpected_message(
                             extensions_sv2::EXTENSION_TYPE_EXTENSIONS_NEGOTIATION,
                             extensions_sv2::MESSAGE_TYPE_REQUEST_EXTENSIONS_ERROR,
+                        ))
+                    }
+                },
+                // SetPayoutDistribution is sent by server, not client
+                Extensions::CoinbaseTransactionPayouts(ext) => match ext {
+                    parsers_sv2::CoinbaseTransactionPayouts::SetPayoutDistribution(_) => {
+                        Err(Self::Error::unexpected_message(
+                            extensions_sv2::EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
+                            extensions_sv2::MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
                         ))
                     }
                 },

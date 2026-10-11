@@ -27,7 +27,7 @@ mod tlv;
 mod tlv_extensions;
 
 pub use tlv::{Tlv, TlvError, TlvField, TlvList, TLV_HEADER_SIZE};
-pub use tlv_extensions::{ExtensionError, UserIdentityError};
+pub use tlv_extensions::{DistributionIdError, ExtensionError, UserIdentityError};
 
 extern crate alloc;
 use alloc::vec::Vec;
@@ -628,6 +628,47 @@ impl ExtensionsNegotiation<'_> {
     }
 }
 
+/// Coinbase Transaction Payouts messages (extension_type=0x0003).
+///
+/// These messages let JDS publish the payout distribution that coinbase outputs of declared jobs
+/// must follow.
+#[derive(Clone, Debug)]
+pub enum CoinbaseTransactionPayouts<'a> {
+    SetPayoutDistribution(SetPayoutDistribution<'a>),
+}
+
+#[derive(Clone, Debug)]
+pub enum CoinbaseTransactionPayoutsOwned {
+    SetPayoutDistribution(SetPayoutDistributionOwned),
+}
+
+impl fmt::Display for CoinbaseTransactionPayouts<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CoinbaseTransactionPayouts::SetPayoutDistribution(m) => write!(f, "{m}"),
+        }
+    }
+}
+
+impl fmt::Display for CoinbaseTransactionPayoutsOwned {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(m) => write!(f, "{m}"),
+        }
+    }
+}
+
+impl CoinbaseTransactionPayouts<'_> {
+    /// Converts this borrowed parser message into its owned counterpart.
+    pub fn into_owned(self) -> CoinbaseTransactionPayoutsOwned {
+        match self {
+            CoinbaseTransactionPayouts::SetPayoutDistribution(m) => {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(m.into_owned())
+            }
+        }
+    }
+}
+
 /// Extensions protocol messages for negotiating optional protocol features.
 ///
 /// This enum represents messages from the SV2 Extensions protocol (channel_msg=0x04),
@@ -638,23 +679,29 @@ impl ExtensionsNegotiation<'_> {
 ///
 /// ## Supported Extension Types
 /// - **Extensions Negotiation (0x0001)**: Basic extension negotiation protocol
+/// - **Coinbase Transaction Payouts (0x0003)**: Payout distribution for declared coinbases
 ///
-/// Future extension types will be added as new variants (e.g., Worker Hashrate Tracking).
+/// Extensions that only add TLV fields to existing messages, such as Worker-Specific Hashrate
+/// Tracking (0x0002), have no variant here.
 #[derive(Clone, Debug)]
 pub enum Extensions<'a> {
     /// Extensions Negotiation messages (extension_type=0x0001)
     ExtensionsNegotiation(ExtensionsNegotiation<'a>),
+    /// Coinbase Transaction Payouts messages (extension_type=0x0003)
+    CoinbaseTransactionPayouts(CoinbaseTransactionPayouts<'a>),
 }
 
 #[derive(Clone, Debug)]
 pub enum ExtensionsOwned {
     ExtensionsNegotiation(ExtensionsNegotiationOwned),
+    CoinbaseTransactionPayouts(CoinbaseTransactionPayoutsOwned),
 }
 
 impl fmt::Display for Extensions<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Extensions::ExtensionsNegotiation(m) => write!(f, "{m}"),
+            Extensions::CoinbaseTransactionPayouts(m) => write!(f, "{m}"),
         }
     }
 }
@@ -663,6 +710,7 @@ impl fmt::Display for ExtensionsOwned {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExtensionsOwned::ExtensionsNegotiation(m) => write!(f, "{m}"),
+            ExtensionsOwned::CoinbaseTransactionPayouts(m) => write!(f, "{m}"),
         }
     }
 }
@@ -673,6 +721,9 @@ impl Extensions<'_> {
         match self {
             Extensions::ExtensionsNegotiation(m) => {
                 ExtensionsOwned::ExtensionsNegotiation(m.into_owned())
+            }
+            Extensions::CoinbaseTransactionPayouts(m) => {
+                ExtensionsOwned::CoinbaseTransactionPayouts(m.into_owned())
             }
         }
     }
@@ -1058,6 +1109,11 @@ impl IsSv2Message for Extensions<'_> {
                     MESSAGE_TYPE_REQUEST_EXTENSIONS_ERROR
                 }
             },
+            Self::CoinbaseTransactionPayouts(m) => match m {
+                CoinbaseTransactionPayouts::SetPayoutDistribution(_) => {
+                    MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION
+                }
+            },
         }
     }
 
@@ -1072,12 +1128,18 @@ impl IsSv2Message for Extensions<'_> {
                     CHANNEL_BIT_REQUEST_EXTENSIONS_ERROR
                 }
             },
+            Self::CoinbaseTransactionPayouts(m) => match m {
+                CoinbaseTransactionPayouts::SetPayoutDistribution(_) => {
+                    CHANNEL_BIT_SET_PAYOUT_DISTRIBUTION
+                }
+            },
         }
     }
 
     fn extension_type(&self) -> u16 {
         match self {
             Self::ExtensionsNegotiation(_) => EXTENSION_TYPE_EXTENSIONS_NEGOTIATION,
+            Self::CoinbaseTransactionPayouts(_) => EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
         }
     }
 }
@@ -1094,6 +1156,11 @@ impl IsSv2Message for ExtensionsOwned {
                     MESSAGE_TYPE_REQUEST_EXTENSIONS_ERROR
                 }
             },
+            Self::CoinbaseTransactionPayouts(m) => match m {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(_) => {
+                    MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION
+                }
+            },
         }
     }
 
@@ -1108,12 +1175,18 @@ impl IsSv2Message for ExtensionsOwned {
                     CHANNEL_BIT_REQUEST_EXTENSIONS_ERROR
                 }
             },
+            Self::CoinbaseTransactionPayouts(m) => match m {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(_) => {
+                    CHANNEL_BIT_SET_PAYOUT_DISTRIBUTION
+                }
+            },
         }
     }
 
     fn extension_type(&self) -> u16 {
         match self {
             Self::ExtensionsNegotiation(_) => EXTENSION_TYPE_EXTENSIONS_NEGOTIATION,
+            Self::CoinbaseTransactionPayouts(_) => EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
         }
     }
 }
@@ -1402,6 +1475,9 @@ impl<'decoder> From<Extensions<'decoder>> for EncodableField<'decoder> {
                 ExtensionsNegotiation::RequestExtensionsSuccess(a) => a.into(),
                 ExtensionsNegotiation::RequestExtensionsError(a) => a.into(),
             },
+            Extensions::CoinbaseTransactionPayouts(ext) => match ext {
+                CoinbaseTransactionPayouts::SetPayoutDistribution(a) => a.into(),
+            },
         }
     }
 }
@@ -1413,6 +1489,9 @@ impl<'decoder> From<ExtensionsOwned> for EncodableField<'decoder> {
                 ExtensionsNegotiationOwned::RequestExtensions(a) => a.into(),
                 ExtensionsNegotiationOwned::RequestExtensionsSuccess(a) => a.into(),
                 ExtensionsNegotiationOwned::RequestExtensionsError(a) => a.into(),
+            },
+            ExtensionsOwned::CoinbaseTransactionPayouts(ext) => match ext {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(a) => a.into(),
             },
         }
     }
@@ -1426,6 +1505,9 @@ impl GetSize for Extensions<'_> {
                 ExtensionsNegotiation::RequestExtensionsSuccess(a) => a.get_size(),
                 ExtensionsNegotiation::RequestExtensionsError(a) => a.get_size(),
             },
+            Extensions::CoinbaseTransactionPayouts(m) => match m {
+                CoinbaseTransactionPayouts::SetPayoutDistribution(a) => a.get_size(),
+            },
         }
     }
 }
@@ -1437,6 +1519,9 @@ impl GetSize for ExtensionsOwned {
                 ExtensionsNegotiationOwned::RequestExtensions(a) => a.get_size(),
                 ExtensionsNegotiationOwned::RequestExtensionsSuccess(a) => a.get_size(),
                 ExtensionsNegotiationOwned::RequestExtensionsError(a) => a.get_size(),
+            },
+            ExtensionsOwned::CoinbaseTransactionPayouts(m) => match m {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(a) => a.get_size(),
             },
         }
     }
@@ -1921,6 +2006,26 @@ impl TryFrom<u8> for ExtensionsNegotiationTypes {
     }
 }
 
+/// Extension message types enum for Coinbase Transaction Payouts (extension_type=0x0003)
+#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+pub enum CoinbaseTransactionPayoutsTypes {
+    SetPayoutDistribution = MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
+}
+
+impl TryFrom<u8> for CoinbaseTransactionPayoutsTypes {
+    type Error = ParserError;
+
+    fn try_from(v: u8) -> Result<CoinbaseTransactionPayoutsTypes, ParserError> {
+        match v {
+            MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION => {
+                Ok(CoinbaseTransactionPayoutsTypes::SetPayoutDistribution)
+            }
+            _ => Err(ParserError::UnexpectedMessage(v)),
+        }
+    }
+}
+
 /// TryFrom implementation for parsing Extensions from (extension_type, msg_type, payload)
 ///
 /// Note: The channel_msg bit (bit 15) is automatically stripped from extension_type
@@ -1956,6 +2061,17 @@ impl<'a> TryFrom<(u16, u8, &'a mut [u8])> for Extensions<'a> {
                         let message: RequestExtensionsError = from_bytes(payload)?;
                         Ok(Extensions::ExtensionsNegotiation(
                             ExtensionsNegotiation::RequestExtensionsError(message),
+                        ))
+                    }
+                }
+            }
+            EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS => {
+                let msg_enum: CoinbaseTransactionPayoutsTypes = msg_type.try_into()?;
+                match msg_enum {
+                    CoinbaseTransactionPayoutsTypes::SetPayoutDistribution => {
+                        let message: SetPayoutDistribution = from_bytes(payload)?;
+                        Ok(Extensions::CoinbaseTransactionPayouts(
+                            CoinbaseTransactionPayouts::SetPayoutDistribution(message),
                         ))
                     }
                 }
@@ -2395,6 +2511,20 @@ impl From<RequestExtensionsErrorOwned> for ExtensionsOwned {
     }
 }
 
+impl<'a> From<SetPayoutDistribution<'a>> for Extensions<'a> {
+    fn from(v: SetPayoutDistribution<'a>) -> Self {
+        Extensions::CoinbaseTransactionPayouts(CoinbaseTransactionPayouts::SetPayoutDistribution(v))
+    }
+}
+
+impl From<SetPayoutDistributionOwned> for ExtensionsOwned {
+    fn from(v: SetPayoutDistributionOwned) -> Self {
+        ExtensionsOwned::CoinbaseTransactionPayouts(
+            CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(v),
+        )
+    }
+}
+
 impl<'a> From<OpenStandardMiningChannel<'a>> for Mining<'a> {
     fn from(v: OpenStandardMiningChannel<'a>) -> Self {
         Mining::OpenStandardMiningChannel(v)
@@ -2655,13 +2785,19 @@ impl<'a> TryFrom<AnyMessage<'a>> for MiningDeviceMessages<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::{AnyMessage, Extensions, ExtensionsNegotiation, JobDeclaration, Mining};
+    use crate::{
+        AnyMessage, CoinbaseTransactionPayouts, Extensions, ExtensionsNegotiation, JobDeclaration,
+        Mining,
+    };
     use alloc::vec;
     use alloc::vec::Vec;
     use binary_sv2::{Seq0255, Seq064K, Str0255, Sv2Option, B0255, B032, B064K, U256};
     use codec_sv2::{EncodableFrame, MessageFrame};
     use core::convert::{TryFrom, TryInto};
-    use extensions_sv2::{RequestExtensions, EXTENSION_TYPE_EXTENSIONS_NEGOTIATION};
+    use extensions_sv2::{
+        RequestExtensions, SetPayoutDistribution, EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
+        EXTENSION_TYPE_EXTENSIONS_NEGOTIATION, MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
+    };
     use job_declaration_sv2::PushSolution;
     use mining_sv2::{
         NewMiningJob, SetCustomMiningJob, SetCustomMiningJobError, SetCustomMiningJobSuccess,
@@ -2698,6 +2834,43 @@ mod test {
             message_type, 0,
             "Message type should be 0 for RequestExtensions"
         );
+    }
+
+    #[test]
+    fn set_payout_distribution_serialization() {
+        const CORRECTLY_SERIALIZED_MSG: &[u8] = &[
+            3, 0, 0, 31, 0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0xaa, 2, 0, 1, 0, 0xbb, 1, 0, 0xcc, 2,
+            0, 0x22, 0x02, 0, 0, 0x4a, 0x01, 0, 0, 0, 0,
+        ];
+        let set_payout_distribution = SetPayoutDistribution {
+            distribution_id: 7,
+            pool_payout: B064K::try_from([0xaa_u8].as_slice()).unwrap(),
+            payouts: Seq064K::new(vec![
+                B064K::try_from([0xbb_u8].as_slice()).unwrap(),
+                B064K::try_from([0xcc_u8].as_slice()).unwrap(),
+            ])
+            .unwrap(),
+            dust_limits: Seq064K::new(vec![546, 330]).unwrap(),
+            additional_outputs: Seq064K::new(vec![]).unwrap(),
+        };
+        let message = AnyMessage::Extensions(Extensions::CoinbaseTransactionPayouts(
+            CoinbaseTransactionPayouts::SetPayoutDistribution(set_payout_distribution.clone()),
+        ));
+        message_serialization_check(message, CORRECTLY_SERIALIZED_MSG);
+
+        let mut payload = CORRECTLY_SERIALIZED_MSG[6..].to_vec();
+        let parsed = Extensions::try_from((
+            EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
+            MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
+            payload.as_mut_slice(),
+        ))
+        .unwrap();
+        match parsed {
+            Extensions::CoinbaseTransactionPayouts(
+                CoinbaseTransactionPayouts::SetPayoutDistribution(parsed),
+            ) => assert_eq!(parsed, set_payout_distribution),
+            other => panic!("Expected SetPayoutDistribution, found: {other:?}"),
+        }
     }
 
     #[test]

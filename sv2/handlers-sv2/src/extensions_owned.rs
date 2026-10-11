@@ -1,10 +1,11 @@
 use extensions_sv2::{
     RequestExtensionsErrorOwned, RequestExtensionsOwned, RequestExtensionsSuccessOwned,
+    SetPayoutDistributionOwned,
 };
 use framing_sv2::header::Header;
 use parsers_sv2::{
-    parse_message_frame_with_tlvs, AnyMessage, Extensions, ExtensionsNegotiationOwned,
-    ExtensionsOwned, Tlv,
+    parse_message_frame_with_tlvs, AnyMessage, CoinbaseTransactionPayoutsOwned, Extensions,
+    ExtensionsNegotiationOwned, ExtensionsOwned, Tlv,
 };
 
 use crate::error::HandlerErrorType;
@@ -97,6 +98,11 @@ pub trait HandleExtensionsFromServerOwnedSync {
                     ))
                 }
             },
+            ExtensionsOwned::CoinbaseTransactionPayouts(ext) => match ext {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(msg) => {
+                    self.handle_set_payout_distribution(server_id, msg, tlv_fields)
+                }
+            },
         }
     }
 
@@ -111,6 +117,13 @@ pub trait HandleExtensionsFromServerOwnedSync {
         &mut self,
         server_id: Option<usize>,
         msg: RequestExtensionsErrorOwned,
+        tlv_fields: Option<&[Tlv]>,
+    ) -> Result<(), Self::Error>;
+
+    fn handle_set_payout_distribution(
+        &mut self,
+        server_id: Option<usize>,
+        msg: SetPayoutDistributionOwned,
         tlv_fields: Option<&[Tlv]>,
     ) -> Result<(), Self::Error>;
 }
@@ -210,6 +223,12 @@ pub trait HandleExtensionsFromServerOwnedAsync {
                         ))
                     }
                 },
+                ExtensionsOwned::CoinbaseTransactionPayouts(ext) => match ext {
+                    CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(msg) => {
+                        self.handle_set_payout_distribution(server_id, msg, tlv_fields)
+                            .await
+                    }
+                },
             }
         }
     }
@@ -225,6 +244,13 @@ pub trait HandleExtensionsFromServerOwnedAsync {
         &mut self,
         server_id: Option<usize>,
         msg: RequestExtensionsErrorOwned,
+        tlv_fields: Option<&[Tlv]>,
+    ) -> Result<(), Self::Error>;
+
+    async fn handle_set_payout_distribution(
+        &mut self,
+        server_id: Option<usize>,
+        msg: SetPayoutDistributionOwned,
         tlv_fields: Option<&[Tlv]>,
     ) -> Result<(), Self::Error>;
 }
@@ -317,6 +343,15 @@ pub trait HandleExtensionsFromClientOwnedSync {
                     Err(Self::Error::unexpected_message(
                         extensions_sv2::EXTENSION_TYPE_EXTENSIONS_NEGOTIATION,
                         extensions_sv2::MESSAGE_TYPE_REQUEST_EXTENSIONS_ERROR,
+                    ))
+                }
+            },
+            // SetPayoutDistribution is sent by server, not client
+            ExtensionsOwned::CoinbaseTransactionPayouts(ext) => match ext {
+                CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(_) => {
+                    Err(Self::Error::unexpected_message(
+                        extensions_sv2::EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
+                        extensions_sv2::MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
                     ))
                 }
             },
@@ -425,6 +460,15 @@ pub trait HandleExtensionsFromClientOwnedAsync {
                         Err(Self::Error::unexpected_message(
                             extensions_sv2::EXTENSION_TYPE_EXTENSIONS_NEGOTIATION,
                             extensions_sv2::MESSAGE_TYPE_REQUEST_EXTENSIONS_ERROR,
+                        ))
+                    }
+                },
+                // SetPayoutDistribution is sent by server, not client
+                ExtensionsOwned::CoinbaseTransactionPayouts(ext) => match ext {
+                    CoinbaseTransactionPayoutsOwned::SetPayoutDistribution(_) => {
+                        Err(Self::Error::unexpected_message(
+                            extensions_sv2::EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
+                            extensions_sv2::MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
                         ))
                     }
                 },

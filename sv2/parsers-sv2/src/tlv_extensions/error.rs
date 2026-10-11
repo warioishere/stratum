@@ -6,12 +6,15 @@ use core::fmt;
 pub enum ExtensionError {
     /// Worker-Specific Hashrate Tracking extension error.
     UserIdentity(UserIdentityError),
+    /// Coinbase Transaction Payouts extension error.
+    DistributionId(DistributionIdError),
 }
 
 impl fmt::Display for ExtensionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ExtensionError::UserIdentity(e) => write!(f, "UserIdentity error: {}", e),
+            ExtensionError::DistributionId(e) => write!(f, "DistributionId error: {}", e),
         }
     }
 }
@@ -25,6 +28,59 @@ impl From<UserIdentityError> for ExtensionError {
 impl From<UserIdentityError> for crate::ParserError {
     fn from(e: UserIdentityError) -> Self {
         crate::ParserError::ExtensionError(ExtensionError::UserIdentity(e))
+    }
+}
+
+impl From<DistributionIdError> for ExtensionError {
+    fn from(e: DistributionIdError) -> Self {
+        ExtensionError::DistributionId(e)
+    }
+}
+
+impl From<DistributionIdError> for crate::ParserError {
+    fn from(e: DistributionIdError) -> Self {
+        crate::ParserError::ExtensionError(ExtensionError::DistributionId(e))
+    }
+}
+
+/// Errors specific to the Coinbase Transaction Payouts extension.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DistributionIdError {
+    /// Extension type in TLV does not match expected value (0x0003).
+    ///
+    /// Contains the actual extension_type found.
+    InvalidExtensionType(u16),
+
+    /// Field type in TLV does not match expected value (0x01).
+    ///
+    /// Contains the actual field_type found.
+    InvalidFieldType(u8),
+
+    /// TLV value is not exactly 8 bytes long.
+    ///
+    /// Contains the actual length in bytes.
+    InvalidLength(usize),
+}
+
+impl fmt::Display for DistributionIdError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DistributionIdError::InvalidExtensionType(ext_type) => write!(
+                f,
+                "Invalid extension type 0x{:04x}, expected 0x0003 (Coinbase Transaction Payouts)",
+                ext_type
+            ),
+            DistributionIdError::InvalidFieldType(field_type) => write!(
+                f,
+                "Invalid field type 0x{:02x}, expected 0x01 (DistributionId)",
+                field_type
+            ),
+            DistributionIdError::InvalidLength(len) => write!(
+                f,
+                "DistributionId length {} bytes, expected exactly 8 bytes",
+                len
+            ),
+        }
     }
 }
 
