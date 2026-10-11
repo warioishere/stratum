@@ -55,9 +55,9 @@ pub use worker_specific_hashrate_tracking::{
 
 // Re-export commonly used items from coinbase_transaction_payouts
 pub use coinbase_transaction_payouts::{
-    DistributionId, SetPayoutDistribution, SetPayoutDistributionOwned,
-    CHANNEL_BIT_SET_PAYOUT_DISTRIBUTION, ERROR_CODE_INVALID_PAYOUT_DISTRIBUTION,
-    ERROR_CODE_STALE_PAYOUT_DISTRIBUTION,
+    compute_payout_amounts, DistributionId, PayoutAmounts, PayoutComputationError,
+    SetPayoutDistribution, SetPayoutDistributionOwned, CHANNEL_BIT_SET_PAYOUT_DISTRIBUTION,
+    ERROR_CODE_INVALID_PAYOUT_DISTRIBUTION, ERROR_CODE_STALE_PAYOUT_DISTRIBUTION,
     EXTENSION_TYPE as EXTENSION_TYPE_COINBASE_TRANSACTION_PAYOUTS,
     FIELD_TYPE_DISTRIBUTION_ID as TLV_FIELD_TYPE_DISTRIBUTION_ID,
     MESSAGE_TYPE_SET_PAYOUT_DISTRIBUTION,
