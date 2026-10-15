@@ -19,5 +19,5 @@ framing_sv2 = { path = "../framing-sv2", version = "^8.0.0" }
 mining_sv2 = { path = "../subprotocols/mining", version = "^13.0.0" }
 template_distribution_sv2 = { path = "../subprotocols/template-distribution", version = "^8.0.0" }
 job_declaration_sv2 = { path = "../subprotocols/job-declaration", version = "^10.0.0" }
-extensions_sv2 = { path = "../extensions-sv2", version = "^0.3.0" }
+extensions_sv2 = { path = "../extensions-sv2", version = "^0.3.1" }
 trait-variant = { workspace = true }
